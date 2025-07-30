@@ -1,0 +1,5 @@
+# TODO: Add a way to simulate therapy sessions that reduce fear memories. Sounds hard.
+# NOTE: Memories shouldn’t just fade — they should transform. Not implemented yet.
+# Trying a dumb idea here, but it might work.
+# Could’ve used a database, but that felt like overkill for now.
+# This whole decay model might be too naive. Should probably read more on Ebbinghaus curve.
