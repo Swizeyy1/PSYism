@@ -1,0 +1,186 @@
+# EmotionMemorySim
+# A rough simulation of how human memory might work with emotions.
+# Author: J. Doe
+# Last updated: July 2025
+# Notes:
+# - This is a loose model, not scientific. Just vibes + behavior logic.
+# - Future plan: Add long-term vs short-term memory layers? Maybe even dreams?
+
+import random
+import time
+import math
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+
+# === CONFIGURABLE PARAMETERS ===
+BASE_DECAY_RATE = 0.018        # Daily memory strength decay factor
+ACCESS_REINFORCEMENT = 0.05    # Bonus per recall
+MAX_ACCESS_BONUS = 0.4         # Cap on access-related strength
+DISTORTION_CHANCE_PER_DAY = 0.1  # Memory mutability
+
+# === EMOTIONS ===
+class EmotionType:
+    JOY = "joy"
+    SADNESS = "sadness"
+    ANGER = "anger"
+    FEAR = "fear"
+    SURPRISE = "surprise"
+    LOVE = "love"
+    ANXIETY = "anxiety"
+    # Still debating: add "SHAME", "GRATITUDE", or keep it clean?
+
+@dataclass
+class Memory:
+    id: int
+    content: str
+    emotion: str
+    intensity: int  # 1 (meh) to 10 (burned into your soul)
+    timestamp: datetime
+    decay_factor: float = 1.0
+    distortion_level: float = 0.0
+    access_count: int = 0
+
+    def get_strength(self) -> float:
+        """
+        Estimate memory strength: how vivid it feels right now.
+        Factors: emotional intensity, time, and recall history.
+        """
+        base_strength = self.intensity / 10.0
+        days_old = (datetime.now() - self.timestamp).days
+        decay_mod = (11 - self.intensity) / 10
+        time_decay = math.exp(-days_old * BASE_DECAY_RATE * decay_mod)
+        recall_bonus = min(MAX_ACCESS_BONUS, self.access_count * ACCESS_REINFORCEMENT)
+        return max(0.0, base_strength * time_decay * self.decay_factor + recall_bonus)
+
+    def apply_distortion(self):
+        """
+        Simulate emotional "rewriting" over time.
+        Fear exaggerates. Joy gets prettier. Sadness can become blurry.
+        """
+        if self.emotion == EmotionType.FEAR and self.distortion_level < 0.6:
+            self.distortion_level += 0.1
+            if random.random() > 0.4:
+                self.intensity = min(10, self.intensity + 1)
+        elif self.emotion == EmotionType.JOY and self.distortion_level < 0.4:
+            self.distortion_level += 0.05
+            # joy grows sparkly in memory
+        elif self.emotion == EmotionType.SADNESS and self.distortion_level < 0.5:
+            self.distortion_level += 0.07
+            # sadness tends to fade the details
+            if random.random() > 0.6:
+                self.intensity = max(1, self.intensity - 1)
+
+    def __repr__(self):
+        strength = self.get_strength()
+        d_flag = "*" if self.distortion_level >= 0.2 else ""
+        return f"ID:{self.id:02d} [{self.emotion.upper()}:{self.intensity}{d_flag}] '{self.content}' | Strength: {strength:.2f}, Accessed: {self.access_count}"
+
+class EmotionalMemorySystem:
+    def __init__(self):
+        self.memories: Dict[int, Memory] = {}
+        self.next_id = 1
+        self.memory_links: Dict[int, List[int]] = {}  # could use networkx later
+
+    def add_memory(self, content: str, emotion: str, intensity: int) -> Memory:
+        if not 1 <= intensity <= 10:
+            print(f"[WARN] Intensity {intensity} is out of range. Clamping.")
+            intensity = max(1, min(10, intensity))
+
+        mem = Memory(
+            id=self.next_id,
+            content=content,
+            emotion=emotion,
+            intensity=intensity,
+            timestamp=datetime.now()
+        )
+        self.memories[mem.id] = mem
+        self.memory_links[mem.id] = []
+        self._create_links(mem)
+        self.next_id += 1
+        print(f"[ADD] New memory added: {mem}")
+        return mem
+
+    def _create_links(self, new_mem: Memory):
+        """
+        Auto-link similar memories. This is dumb right now.
+        Needs improvement for large datasets.
+        """
+        for mem in self.memories.values():
+            if mem.id == new_mem.id:
+                continue
+            if mem.emotion == new_mem.emotion and abs(mem.intensity - new_mem.intensity) <= 2:
+                self.memory_links[new_mem.id].append(mem.id)
+                self.memory_links[mem.id].append(new_mem.id)
+
+    def pass_time(self, days: int = 1):
+        print(f"\n... {days} simulated day(s) pass ...")
+        for mem in self.memories.values():
+            mem.timestamp -= timedelta(days=days)
+            if random.random() < DISTORTION_CHANCE_PER_DAY * days:
+                mem.apply_distortion()
+            if mem.get_strength() > 0.7 and random.random() < 0.07:
+                mem.access_count += 1
+                # print(f"[Subconscious recall] {mem.content}")
+
+    def recall(self, memory_id: int) -> Optional[Memory]:
+        mem = self.memories.get(memory_id)
+        if not mem:
+            print(f"[ERROR] No memory found with ID {memory_id}")
+            return None
+        prob = mem.get_strength()
+        if random.random() < prob:
+            mem.access_count += 1
+            print(f"[RECALL] Successfully remembered: {mem.content}")
+            return mem
+        else:
+            mem.decay_factor *= 0.95
+            print(f"[RECALL FAIL] Could not fully recall '{mem.content}'... fading.")
+            return None
+
+    def show_all(self):
+        print("\n=== MEMORY SNAPSHOT ===")
+        for mem in sorted(self.memories.values(), key=lambda m: m.get_strength(), reverse=True):
+            print(mem)
+
+    def show_links(self, mem_id: int):
+        linked = self.memory_links.get(mem_id, [])
+        if not linked:
+            print(f"No associations for memory {mem_id}")
+            return
+        print(f"Memory {mem_id} is linked to: {linked}")
+
+# === TEST RUN ===
+if __name__ == "__main__":
+    print(">> EmotionMemorySim v0.3 - Booting up\n")
+
+    brain = EmotionalMemorySystem()
+
+    # Initial life events
+    job = brain.add_memory("Got the job I dreamed about", EmotionType.JOY, 9)
+    fight = brain.add_memory("Fell out with a friend", EmotionType.SADNESS, 7)
+    shadow = brain.add_memory("Saw a figure in the dark alley", EmotionType.FEAR, 6)
+    bland_lunch = brain.add_memory("Ate plain bread with no butter", EmotionType.SADNESS, 2)
+
+    brain.show_all()
+
+    brain.pass_time(days=12)
+
+    brain.recall(fight.id)
+    brain.recall(fight.id)
+    brain.recall(job.id)
+
+    brain.pass_time(days=30)
+
+    print("\n--- FEAR MEMORY CHECK ---")
+    brain.recall(shadow.id)
+    brain.show_links(shadow.id)
+
+    print("\n--- NEW FEAR EVENT ---")
+    new_fear = brain.add_memory("Someone knocked but no one was there", EmotionType.FEAR, 8)
+
+    print("\n--- FINAL MEMORY MAP ---")
+    brain.show_all()
+    brain.show_links(new_fear.id)
+
+    print("\n[END OF SIMULATION]")
