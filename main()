@@ -1,0 +1,7 @@
+def main():
+    store = MemoryStore()
+    ...
+    run_simulation(store)
+
+if __name__ == "__main__":
+    main()
